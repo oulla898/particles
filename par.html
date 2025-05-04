@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <title>Dis Particle Groove Machine v2</title>
+    <style>
+        :root {
+            --glow-color: rgba(0, 200, 255, 0.8);
+            --active-glow-color: rgba(0, 255, 150, 0.9);
+            --error-glow-color: rgba(255, 80, 80, 0.9);
+            --button-bg: rgba(50, 0, 100, 0.6);
+            --button-border: rgba(150, 50, 255, 0.7);
+            --button-hover-bg: rgba(80, 0, 150, 0.8);
+            --button-hover-border: rgba(200, 100, 255, 0.9);
+            --slider-thumb-bg: #c38cff;
+            --slider-track-bg: rgba(255, 255, 255, 0.15);
+        }
+
+        body { /* ... unchanged ... */
+            margin: 0; overflow: hidden; background-color: #000005;
+            color: #f0f0f0; font-family: 'Consolas', 'Courier New', monospace; cursor: none;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        #ui-container { /* ... unchanged ... */
+             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+             display: flex; flex-direction: column; justify-content: space-between;
+             align-items: center; padding: 20px; pointer-events: none; z-index: 100;
+        }
+        .ui-panel { /* ... unchanged ... */
+            background-color: rgba(15, 10, 30, 0.45); padding: 12px 20px; border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 15px rgba(150, 50, 255, 0.1);
+            text-align: center; pointer-events: all; cursor: default;
+        }
+        #top-ui { display: flex; gap: 20px; align-items: center; }
+        #info-status, #mic-status { /* ... unchanged ... */
+            font-size: 14px; text-shadow: 0 0 6px var(--glow-color); transition: text-shadow 0.3s ease, color 0.3s ease;
+        }
+        #mic-status.active { text-shadow: 0 0 8px var(--active-glow-color); color: #ccffcc; }
+        #mic-status.error { text-shadow: 0 0 8px var(--error-glow-color); color: #ffcccc; }
+
+        /* --- Controls Styling --- */
+        #controls {
+            display: flex;
+            flex-direction: column; /* Stack controls vertically */
+            gap: 15px; /* Space between rows */
+            align-items: center;
+            max-width: 90%; /* Prevent panel from getting too wide */
+            padding: 15px 25px; /* More padding */
+        }
+        .control-row {
+            display: flex;
+            gap: 15px; /* Space between items in a row */
+            align-items: center;
+            width: 100%;
+            justify-content: center;
+        }
+         .control-row label {
+            font-size: 13px;
+            min-width: 100px; /* Align labels */
+            text-align: right;
+            color: #ccc;
+            text-shadow: 0 0 3px rgba(0,0,0,0.5);
+         }
+
+        button { /* ... base button styles unchanged ... */
+            background: var(--button-bg); color: white; border: 1px solid var(--button-border);
+            border-radius: 8px; padding: 10px 18px; cursor: pointer; font-family: inherit;
+            font-size: 14px; transition: all 0.25s ease; text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); min-width: 110px; /* Slightly smaller min-width */
+        }
+        button:hover { /* ... unchanged ... */
+            background: var(--button-hover-bg); border-color: var(--button-hover-border); transform: translateY(-2px); box-shadow: 0 4px 10px rgba(150, 50, 255, 0.3);
+        }
+        button.active { /* Style for active dance style button */
+            background: var(--button-hover-bg);
+            border-color: var(--button-hover-border);
+            box-shadow: 0 0 10px rgba(200, 100, 255, 0.4), inset 0 0 5px rgba(0,0,0,0.3);
+            transform: translateY(-1px);
+        }
+        button#mic-btn.active { /* ... unchanged ... */
+             background: rgba(200, 50, 100, 0.7); border-color: rgba(255, 100, 150, 0.7);
+        }
+        button#mic-btn.active:hover { /* ... unchanged ... */
+             background: rgba(220, 70, 120, 0.9); border-color: rgba(255, 120, 170, 0.9); box-shadow: 0 4px 10px rgba(255, 100, 150, 0.4);
+        }
+        button:disabled { /* ... unchanged ... */
+            opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; background: rgba(50, 50, 50, 0.5); border-color: rgba(100, 100, 100, 0.5);
+        }
+
+        #color-picker { /* ... unchanged ... */
+            display: flex; gap: 10px; padding-left: 15px; border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .color-option { /* ... unchanged ... */
+            width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.2); cursor: pointer; transition: all 0.2s ease; box-shadow: inset 0 0 5px rgba(0,0,0,0.4);
+        }
+        .color-option:hover { transform: scale(1.15); border-color: rgba(255, 255, 255, 0.7); }
+        .color-option.active { transform: scale(1.2); border-color: white; box-shadow: 0 0 12px rgba(255, 255, 255, 0.7), inset 0 0 5px rgba(0,0,0,0.2); }
+
+        /* Slider Styles */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 150px; /* Fixed width for sliders */
+            height: 6px;
+            background: var(--slider-track-bg);
+            border-radius: 3px;
+            cursor: pointer;
+            outline: none;
+            transition: background 0.3s ease;
+        }
+        input[type="range"]:hover {
+             background: rgba(255, 255, 255, 0.25);
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--slider-thumb-bg);
+            border-radius: 50%;
+            border: 1px solid rgba(0,0,0,0.2);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            transition: background 0.3s ease, transform 0.1s ease;
+        }
+        input[type="range"]::-moz-range-thumb { /* Firefox */
+            width: 15px; height: 15px; background: var(--slider-thumb-bg);
+            border-radius: 50%; border: 1px solid rgba(0,0,0,0.2);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4); cursor: pointer;
+        }
+        input[type="range"]:active::-webkit-slider-thumb {
+             transform: scale(1.1);
+             background: #e0b0ff; /* Lighter thumb when active */
+        }
+        input[type="range"]:active::-moz-range-thumb { /* Firefox */
+             transform: scale(1.1); background: #e0b0ff;
+        }
+
+
+        #loading { /* ... unchanged ... */
+            position: fixed; width: 100%; height: 100%; background: #000005; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; transition: opacity 0.8s ease-out; color: #eee;
+        }
+        #loading span { font-size: 28px; letter-spacing: 3px; margin-bottom: 20px; text-shadow: 0 0 10px var(--glow-color); }
+        #progress-container { width: 70%; max-width: 350px; height: 8px; background-color: rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3); }
+        #progress { height: 100%; width: 0%; background: linear-gradient(90deg, #8A2BE2, #FF00FF, #00FFFF); transition: width 0.3s ease; border-radius: 4px; box-shadow: 0 0 8px rgba(150, 100, 255, 0.7); }
+
+        .cursor-dot { /* ... unchanged ... */
+             position: fixed; width: 8px; height: 8px; background-color: var(--glow-color); border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%, -50%); transition: width 0.2s ease, height 0.2s ease, background-color 0.2s ease; mix-blend-mode: screen;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <span>Warming Up the Visuals..</span>
+        <div id="progress-container"><div id="progress"></div></div>
+    </div>
+
+    <div id="ui-container">
+        <div id="top-ui" class="ui-panel">
+            <div id="info-status">Shape: Sphere</div>
+            <div id="mic-status">Mic: OFF</div>
+        </div>
+
+        <div id="controls" class="ui-panel">
+            <!-- Main Control Row -->
+            <div class="control-row">
+                <button id="shape-btn">Morph Shape</button>
+                <button id="mic-btn">Activate Mic</button>
+                <div id="color-picker">
+                    <div class="color-option" title="Fire" data-scheme="fire" style="background: linear-gradient(to bottom right, #ff4500, #ffcc00)"></div>
+                    <div class="color-option active" title="Di" data-scheme="dis" style="background: linear-gradient(45deg, #ff00ff, #00ffff, #ffff00, #ff00ff)"></div>
+                    <div class="color-option" title="Neon" data-scheme="neon" style="background: linear-gradient(to bottom right, #ff00ff, #00ffff)"></div>
+                    <div class="color-option" title="Nature" data-scheme="nature" style="background: linear-gradient(to bottom right, #00ff00, #66ffcc)"></div>
+                    <div class="color-option" title="Ocean" data-scheme="ocean" style="background: linear-gradient(to bottom right, #0055ff, #00ccff)"></div>
+                </div>
+            </div>
+            <!-- Dance Style Row -->
+            <div class="control-row">
+                 <label>Dance Style:</label>
+                 <button class="dance-style-btn" data-style="Flow">Flow</button>
+                 <button class="dance-style-btn" data-style="Breath">Breath</button>
+                 <button class="dance-style-btn" data-style="Pulse">Pulse</button>
+                 <button class="dance-style-btn" data-style="Swirl">Swirl</button>
+                 <button class="dance-style-btn" data-style="Jitter">Jitter</button>
+            </div>
+            <!-- Intensity Sliders Row -->
+            <div class="control-row">
+                 <label for="intensity-slider">Move Intensity:</label>
+                 <input type="range" id="intensity-slider" min="0" max="2" step="0.1" value="1.0">
+                 <label for="brightness-slider">Glow Intensity:</label>
+                 <input type="range" id="brightness-slider" min="0" max="2" step="0.1" value="1.0">
+            </div>
+        </div>
+    </div>
+
+    <canvas id="webglCanvas"></canvas>
+    <div class="cursor-dot" id="cursor-dot"></div>
+
+    <script type="importmap">
+      { "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/",
+          "animejs": "https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.es.js",
+          "simplex-noise": "https://cdn.skypack.dev/simplex-noise@4.0.1" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import anime from 'animejs';
+        import { createNoise3D, createNoise4D } from 'simplex-noise';
+
+        // --- State Variables ---
+        let scene, camera, renderer, controls, clock;
+        let composer, bloomPass;
+        let particleSystem;
+        let currentPositions, sourcePositions, targetPositions, swarmPositions;
+        let particleEffectStrengths;
+        let noise3D, noise4D;
+        let morphTimeline = null;
+        let isInitialized = false, isMorphing = false;
+        let currentDanceStyle = 'Flow';
+        let movementIntensity = 1.0;
+        let brightnessIntensity = 1.0;
+        let lastPeakTime = -Infinity; // For auto-morph cooldown
+
+        // --- Audio State ---
+        let audioContext, analyser, microphoneSource = null;
+        let audioDataArrayTime, audioDataArrayFreq;
+        let isMicEnabled = false, micError = null;
+        let smoothedVolume = 0.0, smoothedBass = 0.0, smoothedTreble = 0.0;
+        const AUDIO_SMOOTHING = 0.1;
+        const FFT_SIZE = 512;
+
+        // --- Configuration ---
+        const CONFIG = {
+            particleCount: 18000, shapeSize: 15,
+            swarmDistanceFactor: 1.6, swirlFactor: 4.5,
+            noiseFrequency: 0.08, noiseTimeScale: 0.05, noiseMaxStrengthMorph: 3.0,
+            baseIdleFlowStrength: 0.15, idleFlowSpeed: 0.06,
+            colorScheme: 'dis', morphDuration: 3000, // Faster morph
+            particleSizeRange: [0.06, 0.22], starCount: 25000,
+            baseBloomStrength: 1.1, bloomRadius: 0.6, bloomThreshold: 0.03,
+            baseRotationSpeed: 0.2, morphSizeFactor: 0.4, morphBrightnessFactor: 0.5,
+            // Audio Reactivity
+            volumeRotationMultiplier: 1.5, volumeFlowMultiplier: 3.0,
+            bassBloomMultiplier: 2.5, bassSizeMultiplier: 0.8, bassBrightnessMultiplier: 0.6,
+            trebleJitterMultiplier: 0.15,
+            // Dance Style Modifiers (can be tuned)
+            breathSpeed: 1.5, breathAmplitude: 0.1,
+            pulseScale: 0.5,
+            swirlSpeed: 0.5, swirlRadius: 0.3,
+            jitterScale: 1.5, // Scale factor for base jitter effect
+            // Frequency Bands
+            bassBand: [1, 6], trebleBand: [50, 150],
+            // Peak Detection
+            bassPeakThreshold: 0.70, // Bass level to trigger auto-morph
+            peakCooldown: 4.0 // Min seconds between auto-morphs
+        };
+
+        // --- Shapes & Colors (unchanged) ---
+        const SHAPES = [ /* ... Sphere, Disco Ball (Cube), Torus, Galaxy, Wave, Pyramid ... */
+            { name: 'Sphere', generator: generateSphere }, { name: 'Dis Ball', generator: generateCube },
+            { name: 'Torus', generator: generateTorus }, { name: 'Galaxy', generator: generateGalaxy },
+            { name: 'Wave', generator: generateWave }, { name: 'Pyramid', generator: generatePyramid }
+        ];
+        let currentShapeIndex = 0;
+        const morphState = { progress: 0.0 };
+        const COLOR_SCHEMES = { /* ... fire, dis, neon, nature, ocean ... */
+             fire: { baseHue: 25, range: 40, saturation: 0.95, lightness: 0.6, type: 'dist' },
+             dis: { baseHue: 0, range: 360, saturation: 1.0, lightness: 0.65, type: 'pos' },
+             neon: { baseHue: 240, range: 120, saturation: 1.0, lightness: 0.65, type: 'dist' },
+             nature: { baseHue: 125, range: 70, saturation: 0.85, lightness: 0.55, type: 'dist' },
+             ocean: { baseHue: 210, range: 60, saturation: 0.9, lightness: 0.6, type: 'dist' }
+        };
+
+        // --- Temp objects (unchanged) ---
+        const tempVec = new THREE.Vector3(); const sourceVec = new THREE.Vector3();
+        const targetVec = new THREE.Vector3(); const swarmVec = new THREE.Vector3();
+        const noiseOffset = new THREE.Vector3(); const flowVec = new THREE.Vector3();
+        const bezPos = new THREE.Vector3(); const swirlAxis = new THREE.Vector3();
+        const currentVec = new THREE.Vector3(); const jitterVec = new THREE.Vector3();
+        const breathVec = new THREE.Vector3(); const pulseVec = new THREE.Vector3();
+        const localSwirlAxis = new THREE.Vector3(); const posRelativeToCenter = new THREE.Vector3();
+
+        // --- UI Elements ---
+        const micButton = document.getElementById('mic-btn');
+        const micStatusElement = document.getElementById('mic-status');
+        const infoElement = document.getElementById('info-status');
+        const shapeButton = document.getElementById('shape-btn');
+        const colorOptions = document.querySelectorAll('.color-option');
+        const cursorDot = document.getElementById('cursor-dot');
+        const intensitySlider = document.getElementById('intensity-slider');
+        const brightnessSlider = document.getElementById('brightness-slider');
+        const danceStyleButtons = document.querySelectorAll('.dance-style-btn');
+
+        // --- Shape Generators (unchanged) ---
+        function generateSphere(c,s){const p=new Float32Array(c*3),f=Math.PI*(Math.sqrt(5)-1);for(let i=0;i<c;i++){const y=1-(i/(c-1))*2,r=Math.sqrt(1-y*y),t=f*i,x=Math.cos(t)*r,z=Math.sin(t)*r;p[i*3]=x*s;p[i*3+1]=y*s;p[i*3+2]=z*s}return p}
+        function generateCube(c,s){const p=new Float32Array(c*3),h=s/2;for(let i=0;i<c;i++){const f=Math.floor(Math.random()*6),u=Math.random()*s-h,v=Math.random()*s-h;switch(f){case 0:p.set([h,u,v],i*3);break;case 1:p.set([-h,u,v],i*3);break;case 2:p.set([u,h,v],i*3);break;case 3:p.set([u,-h,v],i*3);break;case 4:p.set([u,v,h],i*3);break;case 5:p.set([u,v,-h],i*3)}}return p}
+        function generatePyramid(c,s){const p=new Float32Array(c*3),hb=s/2,h=s*1.2,a=new THREE.Vector3(0,h/2,0),bv=[new THREE.Vector3(-hb,-h/2,-hb),new THREE.Vector3(hb,-h/2,-hb),new THREE.Vector3(hb,-h/2,hb),new THREE.Vector3(-hb,-h/2,hb)],ba=s*s,sfh=Math.sqrt(h**2+hb**2),sfa=.5*s*sfh,ta=ba+4*sfa,bw=ba/ta,sw=sfa/ta;for(let i=0;i<c;i++){const r=Math.random();let pt=new THREE.Vector3(),u,v;if(r<bw){u=Math.random();v=Math.random();pt.lerpVectors(bv[0],bv[1],u);const p2=new THREE.Vector3().lerpVectors(bv[3],bv[2],u);pt.lerp(p2,v)}else{const fi=Math.floor((r-bw)/sw),v1=bv[fi],v2=bv[(fi+1)%4];u=Math.random();v=Math.random();if(u+v>1){u=1-u;v=1-v}pt.addVectors(v1,tempVec.subVectors(v2,v1).multiplyScalar(u));pt.add(tempVec.subVectors(a,v1).multiplyScalar(v))}p.set([pt.x,pt.y,pt.z],i*3)}return p}
+        function generateTorus(c,s){const p=new Float32Array(c*3),R=s*.7,r=s*.3;for(let i=0;i<c;i++){const t=Math.random()*Math.PI*2,f=Math.random()*Math.PI*2,x=(R+r*Math.cos(f))*Math.cos(t),y=r*Math.sin(f),z=(R+r*Math.cos(f))*Math.sin(t);p[i*3]=x;p[i*3+1]=y;p[i*3+2]=z}return p}
+        function generateGalaxy(c,s){const p=new Float32Array(c*3),a=4,aw=.6,bf=.3;for(let i=0;i<c;i++){const t=Math.random()**1.5,rd=t*s,ai=Math.floor(Math.random()*a),ao=(ai/a)*Math.PI*2,ra=rd/s*6,an=ao+ra,sp=(Math.random()-.5)*aw*(1-rd/s),th=an+sp,x=rd*Math.cos(th),z=rd*Math.sin(th),y=(Math.random()-.5)*s*.1*(1-rd/s*bf);p[i*3]=x;p[i*3+1]=y;p[i*3+2]=z}return p}
+        function generateWave(c,s){const p=new Float32Array(c*3),ws=s*.4,fq=3;for(let i=0;i<c;i++){const u=Math.random()*2-1,v=Math.random()*2-1,x=u*s,z=v*s,d=Math.sqrt(u*u+v*v),a=Math.atan2(v,u),y=Math.sin(d*Math.PI*fq)*Math.cos(a*2)*ws*(1-d);p[i*3]=x;p[i*3+1]=y;p[i*3+2]=z}return p}
+
+        // --- Initialization ---
+        function init() {
+            // --- Loading Screen (unchanged) ---
+            let progress = 0; const progressBar = document.getElementById('progress'); const loadingScreen = document.getElementById('loading');
+            function updateProgress(inc){progress+=inc;progressBar.style.width=`${Math.min(100,progress)}%`;if(progress>=100&&!loadingScreen.style.opacity){setTimeout(()=>{loadingScreen.style.opacity='0';setTimeout(()=>loadingScreen.style.display='none',800)},300)}}
+            updateProgress(0);
+
+            clock = new THREE.Clock();
+            noise3D = createNoise3D(() => Math.random()); noise4D = createNoise4D(() => Math.random());
+            updateProgress(5);
+
+            scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x00000f, 0.025);
+            updateProgress(5);
+
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 10, 35); camera.lookAt(scene.position);
+            updateProgress(5);
+
+            const canvas = document.getElementById('webglCanvas');
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+            updateProgress(10);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.04; controls.minDistance = 5; controls.maxDistance = 100;
+            controls.enablePan = false; controls.autoRotate = true; controls.autoRotateSpeed = CONFIG.baseRotationSpeed;
+            updateProgress(5);
+
+            // Lights (unchanged)
+            scene.add(new THREE.AmbientLight(0x301050)); const dl1=new THREE.DirectionalLight(0xffaaff,0.5); dl1.position.set(10,15,10); scene.add(dl1); const dl2=new THREE.DirectionalLight(0x00ffff,0.3); dl2.position.set(-10,-5,-10); scene.add(dl2);
+            updateProgress(10);
+
+            setupPostProcessing(); updateProgress(10);
+            createStarfield(); updateProgress(15);
+            setupParticleSystem(); updateProgress(25);
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            canvas.addEventListener('click', () => triggerMorph(false)); // Manual trigger
+            shapeButton.addEventListener('click', () => triggerMorph(false)); // Manual trigger
+            micButton.addEventListener('click', toggleMic);
+            colorOptions.forEach(option => option.addEventListener('click', (e) => { /* ... color selection ... */
+                 if(isMorphing)return; colorOptions.forEach(o=>o.classList.remove('active')); e.target.classList.add('active'); CONFIG.colorScheme=e.target.dataset.scheme; updateColors();
+            }));
+            danceStyleButtons.forEach(button => button.addEventListener('click', (e) => { /* ... dance style selection ... */
+                if(isMorphing) return;
+                currentDanceStyle = e.target.dataset.style;
+                danceStyleButtons.forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                console.log("Dance Style:", currentDanceStyle);
+            }));
+            intensitySlider.addEventListener('input', (e) => movementIntensity = parseFloat(e.target.value));
+            brightnessSlider.addEventListener('input', (e) => brightnessIntensity = parseFloat(e.target.value));
+            window.addEventListener('mousemove', (e) => {cursorDot.style.left=`${e.clientX}px`; cursorDot.style.top=`${e.clientY}px`;});
+
+            // Set initial UI states
+            document.querySelector(`.color-option[data-scheme="${CONFIG.colorScheme}"]`).classList.add('active');
+            document.querySelector(`.dance-style-btn[data-style="${currentDanceStyle}"]`).classList.add('active');
+            intensitySlider.value = movementIntensity;
+            brightnessSlider.value = brightnessIntensity;
+            updateProgress(10);
+
+            infoElement.innerText = `Shape: ${SHAPES[currentShapeIndex].name}`;
+            isInitialized = true;
+            animate();
+            console.log("Dis Machine v2 Initialized!");
+        }
+
+        // --- Post Processing (unchanged) ---
+        function setupPostProcessing(){composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));bloomPass=new UnrealBloomPass(new THREE.Vector2(window.innerWidth,window.innerHeight),CONFIG.baseBloomStrength,CONFIG.bloomRadius,CONFIG.bloomThreshold);composer.addPass(bloomPass)}
+
+        // --- Starfield (unchanged) ---
+        function createStarfield(){const v=[],s=[],c=[],g=new THREE.BufferGeometry();for(let i=0;i<CONFIG.starCount;i++){tempVec.set(THREE.MathUtils.randFloatSpread(600),THREE.MathUtils.randFloatSpread(600),THREE.MathUtils.randFloatSpread(600));if(tempVec.length()<150)tempVec.setLength(150+Math.random()*450);v.push(tempVec.x,tempVec.y,tempVec.z);s.push(Math.random()*.2+.05);const co=new THREE.Color(),r=Math.random();if(r<.6)co.setHSL(THREE.MathUtils.randFloat(.55,.75),THREE.MathUtils.randFloat(.3,.8),THREE.MathUtils.randFloat(.7,.95));else if(r<.9)co.setHSL(0,0,THREE.MathUtils.randFloat(.8,1));else co.setHSL(THREE.MathUtils.randFloat(.8,1),THREE.MathUtils.randFloat(.5,.9),THREE.MathUtils.randFloat(.7,.9));c.push(co.r,co.g,co.b)}g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));g.setAttribute('size',new THREE.Float32BufferAttribute(s,1));const m=new THREE.ShaderMaterial({uniforms:{pointTexture:{value:createStarTexture()}},vertexShader:`attribute float size;varying vec3 vColor;varying float vSize;void main(){vColor=color;vSize=size;vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_PointSize=size*(600.0/-mvPosition.z);gl_Position=projectionMatrix*mvPosition;}`,fragmentShader:`uniform sampler2D pointTexture;varying vec3 vColor;varying float vSize;void main(){float alpha=texture2D(pointTexture,gl_PointCoord).a;if(alpha<.1)discard;gl_FragColor=vec4(vColor,alpha*.9);}`,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,vertexColors:true});scene.add(new THREE.Points(g,m))}
+        function createStarTexture(){const s=64,c=document.createElement('canvas');c.width=s;c.height=s;const x=c.getContext('2d'),g=x.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.2,'rgba(255,255,255,.9)');g.addColorStop(.4,'rgba(255,255,255,.5)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,s,s);return new THREE.CanvasTexture(c)}
+
+        // --- Particle System Setup ---
+        function setupParticleSystem() {
+            targetPositions = SHAPES.map(shape => shape.generator(CONFIG.particleCount, CONFIG.shapeSize));
+            const particlesGeometry = new THREE.BufferGeometry();
+
+            currentPositions = new Float32Array(targetPositions[0]);
+            sourcePositions = new Float32Array(targetPositions[0]);
+            swarmPositions = new Float32Array(CONFIG.particleCount * 3);
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
+
+            const baseSizes = new Float32Array(CONFIG.particleCount);
+            particleEffectStrengths = new Float32Array(CONFIG.particleCount);
+            const particleRandomness = new Float32Array(CONFIG.particleCount);
+            for (let i=0; i<CONFIG.particleCount; i++) {
+                baseSizes[i]=THREE.MathUtils.randFloat(CONFIG.particleSizeRange[0],CONFIG.particleSizeRange[1]);
+                particleEffectStrengths[i]=0.0; particleRandomness[i]=Math.random();
+            }
+            particlesGeometry.setAttribute('baseSize', new THREE.BufferAttribute(baseSizes, 1));
+            particlesGeometry.setAttribute('aEffectStrength', new THREE.BufferAttribute(particleEffectStrengths, 1));
+            particlesGeometry.setAttribute('aRandom', new THREE.BufferAttribute(particleRandomness, 1));
+
+            const colors = new Float32Array(CONFIG.particleCount * 3);
+            updateColorArray(colors, currentPositions);
+            particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // --- Updated Shader Material ---
+            const particlesMaterial = new THREE.ShaderMaterial({
+                 uniforms: {
+                      pointTexture: { value: createStarTexture() },
+                      uTime: { value: 0.0 },
+                      uBass: { value: 0.0 },
+                      uTreble: { value: 0.0 },
+                      uBrightnessIntensity: { value: brightnessIntensity } // New uniform
+                 },
+                 vertexShader: `
+                      attribute float baseSize; attribute float aEffectStrength; attribute float aRandom;
+                      uniform float uTime; uniform float uBass; uniform float uTreble;
+                      uniform float uBrightnessIntensity; // Use brightness intensity here too
+
+                      varying vec3 vColor; varying float vOpacity; varying float vEffectStrength;
+                      varying float vBass; varying float vTreble; varying float vRandom;
+
+                      void main() {
+                           vColor = color; vEffectStrength = aEffectStrength;
+                           vBass = uBass; vTreble = uTreble; vRandom = aRandom; vOpacity = 1.0;
+                           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+
+                           // Apply brightness intensity to bass-driven size scaling
+                           float bassSizeFactor = 1.0 + vBass * ${CONFIG.bassSizeMultiplier.toFixed(2)} * uBrightnessIntensity * (0.8 + vRandom * 0.4);
+                           float morphSizeFactor = 1.0 - vEffectStrength * ${CONFIG.morphSizeFactor.toFixed(2)};
+                           float finalSize = baseSize * bassSizeFactor * morphSizeFactor;
+
+                           gl_PointSize = finalSize * (600.0 / -mvPosition.z);
+                           gl_Position = projectionMatrix * mvPosition;
+                      }
+                 `,
+                 fragmentShader: `
+                      uniform sampler2D pointTexture; uniform float uTime;
+                      uniform float uBrightnessIntensity; // Use brightness intensity
+
+                      varying vec3 vColor; varying float vOpacity; varying float vEffectStrength;
+                      varying float vBass; varying float vTreble; varying float vRandom;
+
+                      void main() {
+                           float alpha = texture2D(pointTexture, gl_PointCoord).a;
+                           if (alpha < 0.05) discard;
+
+                           float flicker = 1.0 + sin((uTime * 20.0 + vRandom * 10.0) * (1.0 + vTreble * 2.0)) * 0.1 * vTreble;
+
+                           // Apply brightness intensity to bass-driven brightness scaling
+                           float bassBrightnessFactor = 1.0 + vBass * ${CONFIG.bassBrightnessMultiplier.toFixed(2)} * uBrightnessIntensity * (0.7 + vRandom * 0.6);
+                           float morphBrightnessFactor = 1.0 + vEffectStrength * ${CONFIG.morphBrightnessFactor.toFixed(2)};
+                           float finalBrightness = bassBrightnessFactor * morphBrightnessFactor * flicker;
+
+                           vec3 finalColor = vColor * finalBrightness;
+                           float morphFade = 1.0 - pow(abs(vEffectStrength - 0.5) * 2.0, 4.0) * 0.5;
+                           gl_FragColor = vec4(finalColor, alpha * vOpacity * morphFade);
+                      }
+                 `,
+                 blending: THREE.AdditiveBlending, depthTest: true, depthWrite: false, transparent: true, vertexColors: true
+            });
+
+            particleSystem = new THREE.Points(particlesGeometry, particlesMaterial);
+            scene.add(particleSystem);
+        }
+
+        // --- Color Updates (unchanged) ---
+        function updateColorArray(colors,positionsArray){const scheme=COLOR_SCHEMES[CONFIG.colorScheme],center=new THREE.Vector3(0,0,0),maxRadius=CONFIG.shapeSize*1.2;for(let i=0;i<CONFIG.particleCount;i++){const i3=i*3;tempVec.fromArray(positionsArray,i3);let hue;const noiseVal=(noise3D(tempVec.x*.1,tempVec.y*.1,tempVec.z*.1)+1)*.5;if(scheme.type==='pos'){const nX=(tempVec.x/maxRadius+1)/2,nY=(tempVec.y/maxRadius+1)/2,nZ=(tempVec.z/maxRadius+1)/2;hue=(scheme.baseHue+(nX*.4+nY*.3+nZ*.3+noiseVal*.3)*scheme.range)%360}else{const dist=tempVec.distanceTo(center),distRatio=Math.min(1,dist/maxRadius);hue=scheme.baseHue+(distRatio*.7+noiseVal*.3-.5)*scheme.range}const saturation=THREE.MathUtils.clamp(scheme.saturation*(.8+noiseVal*.4),.5,1);const lightness=THREE.MathUtils.clamp(scheme.lightness*(.7+noiseVal*.6),.4,.8);const color=new THREE.Color().setHSL(hue/360,saturation,lightness);color.toArray(colors,i3)}}
+        function updateColors(){if(!particleSystem||isMorphing)return;const colors=particleSystem.geometry.attributes.color.array,positions=particleSystem.geometry.attributes.position.array;updateColorArray(colors,positions);particleSystem.geometry.attributes.color.needsUpdate=true}
+
+        // --- Morphing Logic ---
+        function triggerMorph(isAutomatic = false) {
+             if (isMorphing) return; // Don't morph if already morphing
+
+             // Cooldown check only for automatic triggers
+             if (isAutomatic && clock.getElapsedTime() < lastPeakTime + CONFIG.peakCooldown) {
+                 return;
+             }
+
+             isMorphing = true; controls.autoRotate = false;
+             console.log(`Morphing triggered ${isAutomatic ? 'automatically' : 'manually'}...`);
+             infoElement.innerText = `Morphing!`; // More dynamic message
+             shapeButton.disabled = true; colorOptions.forEach(o => o.style.pointerEvents = 'none');
+             danceStyleButtons.forEach(btn => btn.disabled = true); // Disable style buttons during morph
+             intensitySlider.disabled = true; brightnessSlider.disabled = true; // Disable sliders
+
+             // Flash effect on auto-morph (optional)
+             if (isAutomatic) {
+                anime({ targets: bloomPass, strength: [bloomPass.strength + 1.0, bloomPass.strength], duration: 300, easing: 'easeOutExpo'});
+             }
+
+             sourcePositions.set(currentPositions);
+             const nextShapeIndex = (currentShapeIndex + 1) % SHAPES.length;
+             const nextTargetPositions = targetPositions[nextShapeIndex];
+             const centerOffsetAmount = CONFIG.shapeSize * CONFIG.swarmDistanceFactor * (1.0 + smoothedVolume * 0.5);
+
+             for (let i = 0; i < CONFIG.particleCount; i++) { /* ... swarm calculation unchanged ... */
+                 const i3 = i * 3; sourceVec.fromArray(sourcePositions, i3); targetVec.fromArray(nextTargetPositions, i3);
+                 swarmVec.lerpVectors(sourceVec, targetVec, 0.5);
+                 const offsetDir = tempVec.set(noise3D(i*0.1,1,1),noise3D(1,i*0.1,1),noise3D(1,1,i*0.1)).normalize();
+                 const distFactor = sourceVec.distanceTo(targetVec) * 0.1 + centerOffsetAmount;
+                 swarmVec.addScaledVector(offsetDir, distFactor * (0.5 + Math.random() * 0.8));
+                 swarmPositions[i3]=swarmVec.x; swarmPositions[i3+1]=swarmVec.y; swarmPositions[i3+2]=swarmVec.z;
+             }
+             currentShapeIndex = nextShapeIndex;
+             morphState.progress = 0;
+             if (morphTimeline) morphTimeline.pause();
+
+             morphTimeline = anime({
+                  targets: morphState, progress: 1, duration: CONFIG.morphDuration, easing: 'easeInOutCubic',
+                  complete: () => {
+                      console.log("Morph complete."); infoElement.innerText = `Shape: ${SHAPES[currentShapeIndex].name}`;
+                      currentPositions.set(targetPositions[currentShapeIndex]); particleSystem.geometry.attributes.position.needsUpdate = true;
+                      particleEffectStrengths.fill(0.0); particleSystem.geometry.attributes.aEffectStrength.needsUpdate = true;
+                      sourcePositions.set(targetPositions[currentShapeIndex]); updateColors();
+                      isMorphing = false; controls.autoRotate = true;
+                      shapeButton.disabled = false; colorOptions.forEach(o => o.style.pointerEvents = 'auto');
+                      danceStyleButtons.forEach(btn => btn.disabled = false);
+                      intensitySlider.disabled = false; brightnessSlider.disabled = false;
+                      // Update last peak time only if triggered automatically to enforce cooldown
+                      if (isAutomatic) lastPeakTime = clock.getElapsedTime();
+                  }
+             });
+        }
+
+        // --- Audio Handling ---
+        async function setupAudio() { /* ... unchanged ... */
+            micError=null;updateMicUI("Mic: Connecting...");micButton.disabled=true;if(!audioContext)audioContext=new(window.AudioContext||window.webkitAudioContext)();if(audioContext.state==='suspended')await audioContext.resume();try{const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});microphoneSource=audioContext.createMediaStreamSource(stream);analyser=audioContext.createAnalyser();analyser.fftSize=FFT_SIZE;analyser.smoothingTimeConstant=0.5;const bufferLengthFreq=analyser.frequencyBinCount,bufferLengthTime=analyser.fftSize;audioDataArrayFreq=new Uint8Array(bufferLengthFreq);audioDataArrayTime=new Uint8Array(bufferLengthTime);microphoneSource.connect(analyser);isMicEnabled=true;micError=null;updateMicUI("Mic: ON");micButton.textContent="Mute Mic";micButton.classList.add('active')}catch(err){console.error("Mic Error:",err);micError="Mic access failed.";isMicEnabled=false;updateMicUI(micError,true);micButton.textContent="Activate Mic";micButton.classList.remove('active');if(microphoneSource){microphoneSource.mediaStream.getTracks().forEach(track=>track.stop());microphoneSource=null}}finally{micButton.disabled=false}
+        }
+        function disableAudio() { /* ... unchanged ... */
+            if(microphoneSource){microphoneSource.mediaStream.getTracks().forEach(track=>track.stop());microphoneSource.disconnect();microphoneSource=null;analyser=null;audioDataArrayFreq=null;audioDataArrayTime=null}isMicEnabled=false;smoothedVolume=0;smoothedBass=0;smoothedTreble=0;updateMicUI("Mic: OFF");micButton.textContent="Activate Mic";micButton.classList.remove('active');micButton.disabled=false;anime({targets:bloomPass,strength:CONFIG.baseBloomStrength,duration:500,easing:'easeOutQuad'});anime({targets:controls,autoRotateSpeed:CONFIG.baseRotationSpeed,duration:500,easing:'easeOutQuad'})
+        }
+        function toggleMic() { isMicEnabled ? disableAudio() : setupAudio(); }
+
+        // --- Updated Audio Analysis with Peak Detection ---
+        function updateAudioAnalysis() {
+             const elapsedTime = clock.getElapsedTime();
+            if (!isMicEnabled || !analyser) {
+                 smoothedVolume = THREE.MathUtils.lerp(smoothedVolume, 0.0, AUDIO_SMOOTHING * 2);
+                 smoothedBass = THREE.MathUtils.lerp(smoothedBass, 0.0, AUDIO_SMOOTHING * 2);
+                 smoothedTreble = THREE.MathUtils.lerp(smoothedTreble, 0.0, AUDIO_SMOOTHING * 2);
+            } else {
+                analyser.getByteFrequencyData(audioDataArrayFreq);
+                analyser.getByteTimeDomainData(audioDataArrayTime);
+
+                // Volume (RMS)
+                let sumOfSquares=0; for(let i=0;i<audioDataArrayTime.length;i++){const n=(audioDataArrayTime[i]/128)-1;sumOfSquares+=n*n} const rms=Math.sqrt(sumOfSquares/audioDataArrayTime.length); const currentVolume=Math.min(1,rms*4); smoothedVolume=THREE.MathUtils.lerp(smoothedVolume,currentVolume,AUDIO_SMOOTHING);
+
+                // Frequency Bands
+                let bassSum=0,trebleSum=0,bassCount=0,trebleCount=0;
+                for(let i=CONFIG.bassBand[0];i<=CONFIG.bassBand[1];i++){bassSum+=audioDataArrayFreq[i];bassCount++}
+                for(let i=CONFIG.trebleBand[0];i<=CONFIG.trebleBand[1];i++){trebleSum+=audioDataArrayFreq[i];trebleCount++}
+                const currentBass = bassCount>0?(bassSum/bassCount)/255:0; const currentTreble=trebleCount>0?(trebleSum/trebleCount)/255:0;
+                const bassLevel = Math.pow(currentBass, 1.5); // Use the potentially peaky value for detection
+                smoothedBass = THREE.MathUtils.lerp(smoothedBass, bassLevel, AUDIO_SMOOTHING);
+                smoothedTreble = THREE.MathUtils.lerp(smoothedTreble, Math.pow(currentTreble, 1.2), AUDIO_SMOOTHING);
+
+                // --- Peak Detection & Auto-Morph Trigger ---
+                if (bassLevel > CONFIG.bassPeakThreshold) {
+                    triggerMorph(true); // Attempt to trigger automatic morph
+                }
+            }
+
+            // Apply Audio Levels to Visuals
+            if (particleSystem) {
+                particleSystem.material.uniforms.uBass.value = smoothedBass;
+                particleSystem.material.uniforms.uTreble.value = smoothedTreble;
+                particleSystem.material.uniforms.uTime.value = elapsedTime;
+                // Update brightness intensity uniform based on slider
+                particleSystem.material.uniforms.uBrightnessIntensity.value = brightnessIntensity;
+            }
+            bloomPass.strength = CONFIG.baseBloomStrength + smoothedBass * CONFIG.bassBloomMultiplier * brightnessIntensity; // Also scale bloom reactivity
+            controls.autoRotateSpeed = CONFIG.baseRotationSpeed + smoothedVolume * CONFIG.volumeRotationMultiplier;
+        }
+        function updateMicUI(text,isError=false){micStatusElement.innerText=text;micStatusElement.classList.toggle('active',isMicEnabled&&!isError);micStatusElement.classList.toggle('error',isError)}
+
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isInitialized) return;
+
+            const elapsedTime = clock.getElapsedTime();
+            const deltaTime = clock.getDelta();
+
+            updateAudioAnalysis(); // Update audio levels and potentially trigger morph
+
+            controls.update(); // Update camera controls
+
+            if (particleSystem && particleSystem.geometry.attributes.position) { // Check if particle system exists
+                const positions = particleSystem.geometry.attributes.position.array;
+                const effectStrengths = particleSystem.geometry.attributes.aEffectStrength.array;
+
+                if (isMorphing) {
+                    updateMorphAnimation(positions, effectStrengths, elapsedTime, deltaTime);
+                } else {
+                    // Only update idle if not morphing
+                    updateIdleAnimation(positions, effectStrengths, elapsedTime, deltaTime);
+                }
+
+                particleSystem.geometry.attributes.position.needsUpdate = true;
+                if (particleSystem.geometry.attributes.aEffectStrength.needsUpdate) {
+                    particleSystem.geometry.attributes.aEffectStrength.needsUpdate = false;
+                }
+            }
+
+            composer.render(deltaTime);
+        }
+
+
+        // --- Morph Animation (mostly unchanged, audio influence added) ---
+        function updateMorphAnimation(positions,effectStrengths,elapsedTime,deltaTime){const t=morphState.progress,targets=targetPositions[currentShapeIndex],effectStrength=Math.sin(t*Math.PI),currentSwirl=effectStrength*CONFIG.swirlFactor*deltaTime*50*(1+smoothedVolume*.5),currentNoise=effectStrength*CONFIG.noiseMaxStrengthMorph*(1+smoothedBass*.8);const needsUpdate=particleSystem.geometry.attributes.aEffectStrength.needsUpdate;for(let i=0;i<CONFIG.particleCount;i++){const i3=i*3;sourceVec.fromArray(sourcePositions,i3);swarmVec.fromArray(swarmPositions,i3);targetVec.fromArray(targets,i3);const t_inv=1-t,t_inv_sq=t_inv*t_inv,t_sq=t*t;bezPos.copy(sourceVec).multiplyScalar(t_inv_sq);bezPos.addScaledVector(swarmVec,2*t_inv*t);bezPos.addScaledVector(targetVec,t_sq);if(currentSwirl>.001){tempVec.subVectors(bezPos,sourceVec);swirlAxis.set(noise3D(i*.05,elapsedTime*.1,0),noise3D(0,i*.05,elapsedTime*.1),noise3D(elapsedTime*.1,0,i*.05)).normalize();tempVec.applyAxisAngle(swirlAxis,currentSwirl*(.5+Math.random()*.5));bezPos.copy(sourceVec).add(tempVec)}if(currentNoise>.001){const noiseTime=elapsedTime*CONFIG.noiseTimeScale;noiseOffset.set(noise4D(bezPos.x*CONFIG.noiseFrequency,bezPos.y*CONFIG.noiseFrequency,bezPos.z*CONFIG.noiseFrequency,noiseTime),noise4D(bezPos.x*CONFIG.noiseFrequency+10,bezPos.y*CONFIG.noiseFrequency+10,bezPos.z*CONFIG.noiseFrequency+10,noiseTime),noise4D(bezPos.x*CONFIG.noiseFrequency+20,bezPos.y*CONFIG.noiseFrequency+20,bezPos.z*CONFIG.noiseFrequency+20,noiseTime));bezPos.addScaledVector(noiseOffset,currentNoise)}positions[i3]=bezPos.x;positions[i3+1]=bezPos.y;positions[i3+2]=bezPos.z;effectStrengths[i]=effectStrength}if(!needsUpdate)particleSystem.geometry.attributes.aEffectStrength.needsUpdate=true}
+
+
+        // --- *** NEW Idle Animation with Dance Styles *** ---
+        function updateIdleAnimation(positions, effectStrengths, elapsedTime, deltaTime) {
+            const timeScaled = elapsedTime * CONFIG.idleFlowSpeed;
+            const freq = CONFIG.noiseFrequency;
+            const needsStrengthUpdate = particleSystem.geometry.attributes.aEffectStrength.needsUpdate;
+            let needsEffectStrengthReset = false;
+
+            // --- Base Flow Calculation (used by most styles) ---
+            const baseFlowStrength = CONFIG.baseIdleFlowStrength + smoothedVolume * CONFIG.volumeFlowMultiplier;
+
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const i3 = i * 3;
+                sourceVec.fromArray(sourcePositions, i3); // Base position for the current shape
+                currentVec.fromArray(positions, i3); // Current rendered position
+
+                // Calculate Target based on Dance Style
+                tempVec.copy(sourceVec); // Start with the base shape position
+
+                // 1. Apply Base Flow (Noise Field) - Scaled by Intensity
+                flowVec.set(
+                    noise4D(sourceVec.x * freq, sourceVec.y * freq, sourceVec.z * freq, timeScaled),
+                    noise4D(sourceVec.x * freq + 10, sourceVec.y * freq + 10, sourceVec.z * freq + 10, timeScaled),
+                    noise4D(sourceVec.x * freq + 20, sourceVec.y * freq + 20, sourceVec.z * freq + 20, timeScaled)
+                );
+                const effectiveFlowStrength = baseFlowStrength * movementIntensity;
+                 if (currentDanceStyle === 'Flow' || currentDanceStyle === 'Swirl' || currentDanceStyle === 'Breath') { // Styles that use flow
+                    tempVec.addScaledVector(flowVec, effectiveFlowStrength);
+                 }
+
+
+                // 2. Apply Style-Specific Modifications
+                 posRelativeToCenter.copy(sourceVec); // Vector from center to source pos
+
+                 switch (currentDanceStyle) {
+                    case 'Breath':
+                        const breathFactor = Math.sin(elapsedTime * CONFIG.breathSpeed + sourceVec.length() * 0.1); // Sinusoidal wave based on time and distance
+                        const breathAmount = CONFIG.breathAmplitude * (1.0 + smoothedVolume * 1.5) * movementIntensity; // Scale with volume and intensity
+                        breathVec.copy(posRelativeToCenter).normalize().multiplyScalar(breathFactor * breathAmount);
+                        tempVec.add(breathVec);
+                        break;
+
+                    case 'Pulse':
+                        // Sharp outward push based on bass, scaled by intensity
+                        const pulseAmount = smoothedBass * CONFIG.pulseScale * movementIntensity;
+                        pulseVec.copy(posRelativeToCenter).normalize().multiplyScalar(pulseAmount);
+                         // Add pulse directly, maybe bypass lerp later for sharpness? For now, add to target.
+                        tempVec.add(pulseVec);
+                        // Add some base flow noise back in for variation even during pulse
+                        tempVec.addScaledVector(flowVec, effectiveFlowStrength * 0.3);
+                        break;
+
+                    case 'Swirl':
+                        // Rotate around an axis (e.g., Y-axis or noise-based)
+                        const swirlAmount = smoothedVolume * CONFIG.swirlSpeed * movementIntensity * deltaTime * 10.0; // Scale rotation by volume, intensity, time
+                        localSwirlAxis.set(0, 1, 0); // Simple Y-axis swirl
+                        // Rotate the calculated flow target position around the source position
+                        tempVec.sub(sourceVec); // Vector from source to flow target
+                        tempVec.applyAxisAngle(localSwirlAxis, swirlAmount * (0.5 + Math.random()*0.5)); // Add randomness
+                        tempVec.add(sourceVec); // Add back the source position
+                        break;
+
+                    case 'Jitter':
+                         // Primarily driven by treble, scaled by intensity
+                         const jitterStrength = smoothedTreble * CONFIG.trebleJitterMultiplier * CONFIG.jitterScale * movementIntensity;
+                         if (jitterStrength > 0.001) {
+                             const jitterTime = elapsedTime * 8.0; // Faster time for jitter
+                             jitterVec.set(
+                                 (noise4D(sourceVec.x * 3, sourceVec.y * 3, sourceVec.z * 3, jitterTime) - 0.5), // Higher freq noise
+                                 (noise4D(sourceVec.x * 3 + 30, sourceVec.y * 3 + 30, sourceVec.z * 3 + 30, jitterTime) - 0.5),
+                                 (noise4D(sourceVec.x * 3 + 60, sourceVec.y * 3 + 60, sourceVec.z * 3 + 60, jitterTime) - 0.5)
+                             );
+                             tempVec.addScaledVector(jitterVec.normalize(), jitterStrength); // Apply jitter directly to source position
+                         }
+                          // Add a tiny bit of base flow
+                          tempVec.addScaledVector(flowVec, effectiveFlowStrength * 0.1);
+                        break;
+
+                    // Default: Flow (already handled above)
+                }
+
+
+                // 3. Interpolate towards the calculated target
+                currentVec.lerp(tempVec, 0.1); // Lerp factor controls smoothness/responsiveness
+
+                positions[i3] = currentVec.x;
+                positions[i3 + 1] = currentVec.y;
+                positions[i3 + 2] = currentVec.z;
+
+                // Reset morph effect strength if needed
+                if (effectStrengths[i] !== 0.0) {
+                    effectStrengths[i] = 0.0;
+                    needsEffectStrengthReset = true;
+                }
+            }
+
+            if (needsEffectStrengthReset && !needsStrengthUpdate) {
+                particleSystem.geometry.attributes.aEffectStrength.needsUpdate = true;
+            }
+        }
+
+        // --- Window Resize (unchanged) ---
+        function onWindowResize(){camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);composer.setSize(window.innerWidth,window.innerHeight)}
+
+        // --- Start ---
+        init();
+
+    </script>
+</body>
+</html>
