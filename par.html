@@ -149,6 +149,102 @@
         .cursor-dot { /* ... unchanged ... */
              position: fixed; width: 8px; height: 8px; background-color: var(--glow-color); border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%, -50%); transition: width 0.2s ease, height 0.2s ease, background-color 0.2s ease; mix-blend-mode: screen;
         }
+
+        /* --- Add this block for Mobile Responsiveness --- */
+@media (max-width: 700px) { /* Apply styles below 700px screen width */
+
+body {
+    cursor: default; /* Use default cursor on touch devices */
+}
+.cursor-dot {
+    display: none; /* Hide custom cursor on mobile */
+}
+
+#ui-container {
+    padding: 10px; /* Reduce padding */
+}
+
+.ui-panel {
+    padding: 10px 15px; /* Reduce panel padding */
+    max-width: 95%;
+}
+
+#top-ui {
+    flex-direction: column; /* Stack top elements */
+    gap: 8px;
+}
+
+#controls {
+    gap: 12px; /* Reduce gap between control sections */
+    padding: 12px 15px;
+}
+
+.control-row {
+    flex-direction: column; /* Stack items vertically in each row */
+    align-items: center; /* Center stacked items */
+    gap: 10px; /* Adjust gap for vertical stacking */
+    width: 100%;
+}
+
+.control-row label {
+    min-width: auto; /* Remove fixed label width */
+    text-align: center; /* Center label above control */
+    margin-bottom: 4px;
+    font-size: 12px; /* Smaller labels */
+}
+
+input[type="range"] {
+    width: 90%; /* Make sliders take more width */
+    height: 8px; /* Slightly bigger track for touch */
+}
+ input[type="range"]::-webkit-slider-thumb { /* Bigger thumb */
+     width: 20px; height: 20px;
+ }
+ input[type="range"]::-moz-range-thumb { /* Bigger thumb */
+     width: 18px; height: 18px;
+ }
+
+
+button {
+    padding: 9px 16px; /* Adjust button padding */
+    font-size: 13px;
+    min-width: 95px; /* Adjust min width */
+}
+/* Ensure main buttons are reasonably wide */
+#controls .control-row:first-child button {
+     width: 130px;
+     max-width: 45%; /* Allow wrapping if needed */
+}
+
+
+#color-picker {
+    border-left: none; /* Remove side border */
+    padding-left: 0;
+    gap: 8px;
+    margin-top: 8px; /* Add space when stacked */
+    justify-content: center; /* Center color dots */
+    width: 100%;
+}
+.color-option {
+    width: 26px; /* Adjust size */
+    height: 26px;
+}
+.color-option.active {
+    transform: scale(1.15);
+}
+
+/* Make dance style buttons wrap if needed */
+#controls .control-row:nth-child(2) {
+    flex-wrap: wrap; /* Allow wrapping */
+    justify-content: center;
+     gap: 8px; /* Adjust gap for wrapped items */
+}
+ #controls .control-row:nth-child(2) button {
+      min-width: 85px; /* Smaller min-width for these */
+ }
+
+}
+/* --- End of Mobile Responsiveness block --- */
     </style>
 </head>
 <body>
